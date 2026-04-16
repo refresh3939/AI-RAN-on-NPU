@@ -1,0 +1,31 @@
+# Build outputs
+build/
+kernel_meta/
+output/
+*.o
+*.so
+*.a
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.Python
+
+# Data files (generated at runtime)
+*.npy
+captures/
+dump/
+plots/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
