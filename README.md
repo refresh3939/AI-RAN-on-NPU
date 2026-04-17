@@ -1,14 +1,14 @@
-# Ascend-RAN
+# AI-RAN on NPU: OFDM Baseband on Ascend 310B1
 
 **NPU-accelerated OFDM transceiver on Ascend 310B1**
 
-First over-the-air verification of a complete OFDM ISAC transceiver on an edge NPU (Orange Pi AI Pro, Ascend 310B1) paired with a USRP X300 SDR. All baseband DSP — from LDPC encode to OTA transmission, and from sample capture to decoded bits — runs as 15 custom AscendC operators across two boards. No PyTorch, no GPU.
+First over-the-air demonstration of a complete OFDM baseband transceiver running entirely on an edge NPU (Orange Pi AI Pro, Ascend 310B1) paired with USRP X300 SDRs. All baseband DSP — from LDPC encode to OTA transmission, and from sample capture to decoded bits — runs as 15 custom AscendC operators across two boards. No PyTorch, no GPU.
 
 **Key results:**
-- BER = 0 over 130+ OTA frames (real 2.45 GHz RF link)
-- TX: 38.6 ms end-to-end baseband generation
-- RX: 62.5 ms end-to-end receive & decode (46.2 ms NPU-only)
-- Throughput: 2.97 Mbps @ 5 MHz sample rate
+- BER = 0 over 130+ consecutive OTA frames (real 2.45 GHz RF link)
+- NPU-only latency: 30.7 ms (TX) / 46.2 ms (RX)
+- End-to-end latency: 38.6 ms (TX) / 62.5 ms (RX), including ARM host operations
+- Throughput: 2.97 Mbps @ 5 MHz sample rate, 1.69 MHz occupied bandwidth
 
 ## Overview
 
@@ -38,25 +38,25 @@ First over-the-air verification of a complete OFDM ISAC transceiver on an edge N
 ## Repository Layout
 
 ```
-ascend_baseband_310b1/
-├── README.md                          ← you are here
-├── LICENSE                            ← MIT
+NPU-baseband-OFDM/
+├── README.md                                 ← you are here
+├── LICENSE                                   ← MIT
 │
-├── ascend_baseband_310b1_tx/          ← Transmitter chain
-│   ├── README.md                      ←   TX documentation
-│   ├── kernels/                       ←   5 AscendC operators
+├── ai_ran_npu_ascend_baseband_310b1_tx/      ← Transmitter chain
+│   ├── kernels/                              ←   5 AscendC operators
 │   │   ├── ldpc_encode.cpp
 │   │   ├── qam64_modulation.cpp
 │   │   ├── ofdm_ifft.cpp
 │   │   ├── ifft_postproc.cpp
 │   │   └── up_sample_rrc.cpp
+│   ├── scripts/
+│   ├── tiling/
 │   ├── pybind11.cpp
-│   ├── tx_usrp_npu.py                 ←   real-time USRP transmitter
-│   └── gen_tx_signal.py               ←   offline signal generator
+│   ├── tx_usrp_npu.py                        ←   real-time USRP transmitter
+│   └── gen_tx_signal.py                      ←   offline signal generator
 │
-└── ascend_baseband_310b1_rx/          ← Receiver chain
-    ├── README.md                      ←   RX documentation
-    ├── kernels/                       ←   10 AscendC operators
+└── ai_ran_npu_ascend_baseband_310b1_rx/      ← Receiver chain
+    ├── kernels/                              ←   10 AscendC operators
     │   ├── fine_sync.cpp
     │   ├── cfo_compensate.cpp
     │   ├── rrc_downsample.cpp
@@ -67,40 +67,45 @@ ascend_baseband_310b1/
     │   ├── data_extract_mm.cpp
     │   ├── qam64_demod.cpp
     │   └── ldpc_decode.cpp
+    ├── cmake/
+    ├── scripts/
+    ├── tiling/
     ├── pybind11.cpp
-    ├── rx_usrp_npu.py                 ←   real-time USRP receiver
+    ├── rx_usrp_npu.py                        ←   real-time USRP receiver
     ├── capture_usrp.py
     └── demo_rx_intermediate.py
 ```
 
 ## End-to-End Performance
 
-Measured over 150+ consecutive OTA frames, 2.45 GHz carrier, 5 MHz sample rate.
+Measured over 130+ consecutive OTA frames at 2.45 GHz carrier, 5 MHz sample rate.
 
-### TX chain (38.6 ms)
+### TX chain
 
-| Module | Avg (ms) |
+| Module | NPU (ms) |
 |--------|---------:|
-| LDPC | 3.1 |
-| QAM | 6.8 |
-| IFFT | 9.1 |
-| RRC | 11.7 |
-| Intlv | 8.0 |
-| **Total** | **38.6** |
+| LDPC encode  | 3.1  |
+| QAM modulation | 6.8 |
+| OFDM IFFT    | 9.1  |
+| RRC upsample | 11.7 |
+| **NPU total**      | **30.7** |
+| ARM host (bit-packing, interleaving) | 7.9 |
+| **End-to-end** | **38.6** |
 
-### RX chain (62.5 ms end-to-end, 46.2 ms NPU-only)
+### RX chain
 
-| Module | Avg (ms) |
+| Module | NPU (ms) |
 |--------|---------:|
-| H2D | 16.3 |
-| Sync | 10.9 |
-| CFO | 2.8 |
-| RRC | 2.3 |
-| FFT | 4.1 |
-| EQ | 4.7 |
-| QAM | 8.3 |
-| LDPC | 13.1 |
-| **Total** | **62.5** |
+| Sync         | 10.9 |
+| CFO compensation | 2.8 |
+| RRC downsample | 2.3 |
+| OFDM FFT     | 4.1  |
+| LS+ZF equalization | 4.7 |
+| QAM demod    | 8.3  |
+| LDPC decode  | 13.1 |
+| **NPU total**      | **46.2** |
+| Host-to-device (H2D) transfer | 16.3 |
+| **End-to-end** | **62.5** |
 
 ## System Parameters
 
@@ -131,28 +136,28 @@ Measured over 150+ consecutive OTA frames, 2.45 GHz carrier, 5 MHz sample rate.
 
 ```bash
 # On Board A (TX)
-cd ascend_baseband_310b1_tx
-python3 scripts/gen_matrices.py --output_dir input   # generate precomputed matrices
-bash run_pybind.sh                                    # compile AscendC kernels
-python3 tx_usrp_npu.py --gain 0                       # transmit
+cd ai_ran_npu_ascend_baseband_310b1_tx
+python3 scripts/gen_matrices.py --output_dir input
+bash run_pybind.sh
+python3 tx_usrp_npu.py --gain 0
 
 # On Board B (RX)
-cd ascend_baseband_310b1_rx
-python3 gen_matrices.py --output_dir input
+cd ai_ran_npu_ascend_baseband_310b1_rx
+python3 scripts/gen_matrices.py --output_dir input
 bash run_pybind.sh
 python3 rx_usrp_npu.py --gain 15 --count 100
 ```
 
-See [`ascend_baseband_310b1_tx/README.md`](ascend_baseband_310b1_tx/README.md) and [`ascend_baseband_310b1_rx/README.md`](ascend_baseband_310b1_rx/README.md) for detailed build instructions, optimization notes, and per-module explanations.
+Note: USRP IP addresses are currently hardcoded in `tx_usrp_npu.py` (`192.168.20.2`) and `rx_usrp_npu.py` (`192.168.10.3`). Modify these to match your USRP setup.
 
 ## Design Philosophy
 
-This repository demonstrates **computational isomorphism** between NPU primitives (Matmul, vector element-wise) and classical baseband DSP operations:
+This repository demonstrates **computational isomorphism** between NPU primitives (matrix multiplication, vector element-wise) and classical baseband DSP operations:
 
 | DSP operation | NPU primitive |
 |---------------|---------------|
 | LDPC encode / decode | Matmul (GF(2)) |
-| QAM modulation / demod | Vector Cast + Muls/Adds |
+| QAM modulation / demod | Vector cast + muls/adds |
 | OFDM IFFT / FFT | Matmul (DFT matrix) |
 | RRC polyphase filter | Matmul (Toeplitz) |
 | LS channel estimation | Matmul (pseudo-inverse) |
@@ -160,13 +165,13 @@ This repository demonstrates **computational isomorphism** between NPU primitive
 | CFO compensation | Vector cos/sin (angle-sum) |
 | Timing sync | Vector correlation |
 
-NPU hardware natively covers all baseband operations — positioning NPU as an unexplored alternative to GPU-based AI-RAN.
+NPU hardware natively covers all baseband operations — positioning the NPU as an unexplored alternative to GPU-based AI-RAN.
 
 ## Design Notes
 
 ### Boundary between NPU and ARM host
 
-The chain is ~50% NPU compute / 50% ARM host glue. This is not because ARM is the target but because **data rearrangement** (bit packing, phase interleaving, stride-N memory patterns) has no efficient vector mapping on the Da Vinci architecture. Empirically:
+The chain is ~50% NPU compute / 50% ARM host glue. This is not because ARM is the target, but because **data rearrangement** (bit packing, phase interleaving, stride-N memory patterns) has no efficient vector mapping on the Da Vinci architecture. Empirically:
 
 | Operation | NPU scalar | ARM (cache / NEON) | Ratio |
 |-----------|-----------|--------------------|-------|
@@ -178,30 +183,22 @@ PipeBarrier overhead per row dominates when operations cannot be vectorized. ARM
 
 ### Why IFFT/FFT uses cos/sin decomposition
 
-Rather than a complex Matmul, the DFT is factored into two real Matmul ops (one per cos/sin basis), combined by a post-processing kernel. This doubles the Matmul stage but:
+Rather than a complex Matmul, the DFT is factored into two real Matmul operations (one per cos/sin basis), combined by a post-processing kernel. This doubles the Matmul stage but:
 - Enables per-call bias injection (pilot insertion on TX, delay compensation on RX) via Matmul's built-in bias path
 - Saves a separate pilot-insertion kernel
 - Simplifies numeric verification against reference implementations
 
 ## Hardware
 
-- **NPU:** Orange Pi AI Pro (Ascend 310B1, 8 AI Cores, 8 GB)
+- **NPU:** Orange Pi AI Pro (Ascend 310B1, 8 TOPS INT8, 8 W TDP)
 - **SDR:** Ettus USRP X300 (10 GbE connection)
 - **CPU:** ARM Cortex-A55 (on SoC)
-
-## Citation
-
-If this work is useful for your research, please cite:
-
-```
-@article{ascend-ran-2026,
-  title={Ascend-RAN: NPU-Accelerated OFDM Baseband Processing on Edge Devices},
-  author={...},
-  journal={IEEE Communications Magazine (submitted)},
-  year={2026}
-}
-```
 
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+## Contact
+
+Shilong Zhang, Nanjing University
+Email: refresh3939@gmail.com
