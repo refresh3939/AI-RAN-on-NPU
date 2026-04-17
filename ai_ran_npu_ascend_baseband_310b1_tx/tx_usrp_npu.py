@@ -58,7 +58,7 @@ LDPC_N      = 512
 FRAME_LEN   = N_SYM * SYM_UP
 
 USRP_ADDR   = "addr=192.168.20.2"
-TX_FREQ     = 3e9
+TX_FREQ     = 2.45e9
 TX_RATE     = 5e6
 TX_GAIN     = 0
 SEED        = 42
