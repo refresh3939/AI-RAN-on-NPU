@@ -60,7 +60,7 @@ FRAME_LEN       = N_SYM * SYM_UP
 CAPTURE_SAMPLES = 2800000
 
 USRP_ADDR       = "addr=192.168.10.3"
-RX_FREQ         = 3e9
+RX_FREQ         = 2.45e9
 RX_RATE         = 5e6
 RX_GAIN         = 20
 
